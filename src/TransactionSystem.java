@@ -29,12 +29,14 @@ class TransactionSystem {
         secondLock.lock();
         try {
             if (fromAccount.getBalance() < amount) {
-                System.out.println("Insufficient funds in account: " + fromAccountId);
+                System.out.println(Thread.currentThread().getName() + ": Insufficient funds in Account " + fromAccountId + ". Reversing transaction...");
+                reverseTransaction(toAccountId, fromAccountId, amount);
                 return false;
             }
+
             fromAccount.withdraw(amount);
             toAccount.deposit(amount);
-            System.out.println("Transferred $" + amount + " from Account " + fromAccountId + " to Account " + toAccountId);
+            System.out.println(Thread.currentThread().getName() + ": Transferred $" + amount + " from Account " + fromAccountId + " to Account " + toAccountId);
             return true;
         } finally {
             firstLock.unlock();
@@ -43,8 +45,23 @@ class TransactionSystem {
     }
 
     public void reverseTransaction(int fromAccountId, int toAccountId, double amount) {
-        System.out.println("Reversing transaction...");
-        transfer(toAccountId, fromAccountId, amount);
+        BankAccount fromAccount = accounts.get(fromAccountId);
+        BankAccount toAccount = accounts.get(toAccountId);
+
+        // Lock accounts in a consistent order to avoid deadlock
+        BankAccount firstLock = fromAccountId < toAccountId ? fromAccount : toAccount;
+        BankAccount secondLock = fromAccountId < toAccountId ? toAccount : fromAccount;
+
+        firstLock.lock();
+        secondLock.lock();
+        try {
+            toAccount.withdraw(amount);
+            fromAccount.deposit(amount);
+            System.out.println(Thread.currentThread().getName() + ": Reversed transaction: $" + amount + " from Account " + toAccountId + " to Account " + fromAccountId);
+        } finally {
+            firstLock.unlock();
+            secondLock.unlock();
+        }
     }
 
     public void printAccountBalances() {
